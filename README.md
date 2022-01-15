@@ -22,7 +22,7 @@ func main() {
 		NestedLocationLevel: 2,
 	}
 
-	gologger.Info("log error")
+	gologger.Info("log info")
 	gologger.Warning("log warning")
 	gologger.Error("log error")
 }
