@@ -166,15 +166,15 @@ func print(log LogFormat) {
 
 	logType := "|" + createTextBackground(log.Tag.BackgroundColor, log.Tag.Color, fmt.Sprintf("%-7s", log.Level))
 
-	logFuncName = "|" + createTextBackground(blue, white, fmt.Sprintf("%-30s", log.FuncName))
+	logFuncName = "|" + createTextBackground(blue, white, strings.ReplaceAll(fmt.Sprintf("%-30s", log.FuncName), "  ", " ◦"))
 	if !LogConf.LogFuncName {
 		logFuncName = ""
 	}
 
-	logLocation := "|" + createTextBackground(cyan, white, fmt.Sprintf("%-40s", log.Location)) + "|"
+	logLocation := "|" + createTextBackground(cyan, white, strings.ReplaceAll(fmt.Sprintf("%-40s", log.Location), "  ", " ◦")) + "|"
 
 	if LogConf.DebugMode {
-		strLog := fmt.Sprintf("%s\t%s\t%s\t%s\t %s", logTime, logType, logFuncName, logLocation, log.Message)
+		strLog := fmt.Sprintf("%s\t%s\t%s\t%s\t ▶︎ %s", logTime, logType, logFuncName, logLocation, log.Message)
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 0, 0, '\t', 0)
 		fmt.Fprintln(w, strLog)
