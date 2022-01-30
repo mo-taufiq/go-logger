@@ -1,6 +1,7 @@
 package gologger
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -15,33 +16,54 @@ import (
 
 type LogConfiguration struct {
 	TimeZone            string
+	TimeFormat          string
 	Path                string
+	CreateLogFile       bool
 	DebugMode           bool
 	NestedLocationLevel int
+	LogFuncName         bool
 	NestedFuncLevel     int
+	RuntimeCallerSkip   int
 }
 
+// Default config
 var (
 	LogConf = LogConfiguration{
 		TimeZone:            "Asia/Jakarta",
+		TimeFormat:          "2006-01-02T15:04:05-0700",
+		CreateLogFile:       true,
 		Path:                "./logs",
 		DebugMode:           true,
-		NestedLocationLevel: 2,
-		NestedFuncLevel:     2,
+		NestedLocationLevel: 1,
+		LogFuncName:         true,
+		NestedFuncLevel:     1,
+		RuntimeCallerSkip:   2,
 	}
 )
 
 const (
-	ansiReset = "\u001b[0m"
+	ansiResetColor = "\u001b[0m"
+
+	// black = "8;2;0;0;0"
+	// white = "8;2;255;255;255"
+
+	// zshGrey = "8;2;191;176;160"
+	// zshCyan = "8;2;69;132;136"
+
+	// redGoogle    = "8;2;219;68;55"
+	// blueGoogle   = "8;2;76;139;245"
+	// yellowGoogle = "8;2;244;180;0"
+	// greenGoogle  = "8;2;15;157;88"
 
 	black   = "0"
-	red     = "1"
-	green   = "2"
-	yellow  = "3"
-	blue    = "4"
-	magenta = "5"
-	cyan    = "6"
-	white   = "7"
+	red     = "8;5;1"
+	green   = "8;5;2"
+	yellow  = "8;5;3"
+	blue    = "8;5;4"
+	magenta = "8;5;5"
+	cyan    = "8;5;6"
+	grey    = "8;5;7"
+	white   = "8;5;231"
 )
 
 type Tag struct {
@@ -106,34 +128,55 @@ func Info(message string) {
 	print(log)
 }
 
-func writeLogFile(content string) {
-	timezone, _ := time.LoadLocation(LogConf.TimeZone)
-	timeNow := time.Now().In(timezone).Format("2006-01-02")
+func PrintJSONIndent(title string, data interface{}) {
+	LogConf.RuntimeCallerSkip = LogConf.RuntimeCallerSkip + 1
+	json, err := json.MarshalIndent(data, " ", "    ")
+	if err != nil {
+		Error(err.Error())
+		LogConf.RuntimeCallerSkip = LogConf.RuntimeCallerSkip - 1
+		return
+	}
+	Info(fmt.Sprintf("%s:\n%s", title, json))
+	LogConf.RuntimeCallerSkip = LogConf.RuntimeCallerSkip - 1
+}
 
-	path := filepath.Join(LogConf.Path, timeNow+".log")
-	WriteLogFile(path, content+"\n")
+func writeLogFile(content string) {
+	if LogConf.CreateLogFile {
+		timezone, _ := time.LoadLocation(LogConf.TimeZone)
+		timeNow := time.Now().In(timezone).Format("2006-01-02")
+
+		path := filepath.Join(LogConf.Path, timeNow+".log")
+		WriteLogFile(path, content+"\n")
+	}
 }
 
 func print(log LogFormat) {
-	logType := createTextBackground(log.Tag.BackgroundColor, log.Tag.Color, log.Level)
-
-	timeNow := log.Time.Format("2006-01-02T15:04:05-0700")
+	timeNow := log.Time.Format(LogConf.TimeFormat)
 
 	// write log to log file
-	rawLog := "[" + timeNow + "][" + log.Level + "][" + log.FuncName + "][" + log.Location + "] " + log.Message
+	logFuncName := "[" + log.FuncName + "]"
+	if !LogConf.LogFuncName {
+		logFuncName = ""
+	}
+	rawLog := "[" + timeNow + "][" + log.Level + "]" + logFuncName + "[" + log.Location + "] " + log.Message
 	writeLogFile(rawLog)
 
 	// print log to terminal with style
-	logTime := createTextBackground(white, black, timeNow)
+	logTime := createTextBackground(grey, black, timeNow)
 
-	logFuncName := createTextBackground(black, white, log.FuncName)
+	logType := "|" + createTextBackground(log.Tag.BackgroundColor, log.Tag.Color, fmt.Sprintf("%-7s", log.Level))
 
-	logLocation := createTextBackground(blue, white, log.Location)
+	logFuncName = "|" + createTextBackground(blue, white, fmt.Sprintf("%-30s", log.FuncName))
+	if !LogConf.LogFuncName {
+		logFuncName = ""
+	}
+
+	logLocation := "|" + createTextBackground(cyan, white, fmt.Sprintf("%-40s", log.Location)) + "|"
 
 	if LogConf.DebugMode {
-		strLog := fmt.Sprintf("%s\t%s\t%s\t%s %s", logTime, logType, logFuncName, logLocation, log.Message)
+		strLog := fmt.Sprintf("%s\t%s\t%s\t%s\t %s", logTime, logType, logFuncName, logLocation, log.Message)
 		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 0, 0, '\t', tabwriter.Debug)
+		w.Init(os.Stdout, 0, 0, 0, '\t', 0)
 		fmt.Fprintln(w, strLog)
 		w.Flush()
 		// fmt.Println(strLog)
@@ -141,31 +184,21 @@ func print(log LogFormat) {
 }
 
 func createTextBackground(backgroundColor, textColor, text string) string {
-	label := fmt.Sprintf(" %7s ", text)
-	return createBackgroundColor(backgroundColor, false) + createColor(textColor, false) + label + ansiReset
+	label := fmt.Sprintf(" %s ", text)
+	return createBackgroundColor(backgroundColor) + createColor(textColor) + label + ansiResetColor
 }
 
-func createBackgroundColor(color string, isBright bool) string {
-	str := ""
-	if isBright {
-		str = ";1"
-	}
-
-	return "\u001b[4" + color + str + "m"
+func createBackgroundColor(color string) string {
+	return "\u001b[4" + color + "m"
 }
 
-func createColor(color string, isBright bool) string {
-	str := ""
-	if isBright {
-		str = ";1"
-	}
-
-	return "\u001b[3" + color + str + "m"
+func createColor(color string) string {
+	return "\u001b[3" + color + "m"
 }
 
 func getFuncName(n int) string {
 	pc := make([]uintptr, 1)
-	runtime.Callers(3, pc) // adjust the number
+	runtime.Callers(LogConf.RuntimeCallerSkip+1, pc) // adjust the number
 	f := runtime.FuncForPC(pc[0])
 	funcName := f.Name()
 
@@ -187,7 +220,7 @@ func getFuncName(n int) string {
 }
 
 func getPathAndLineNumber(n int) string {
-	_, filePath, lineNumber, ok := runtime.Caller(2) // adjust the number
+	_, filePath, lineNumber, ok := runtime.Caller(LogConf.RuntimeCallerSkip) // adjust the number
 	if !ok {
 		return "?:?"
 	}
@@ -215,12 +248,14 @@ func WriteLogFile(fullFilepath, content string) {
 		file := filepath.Base(fullFilepath)
 		dirPath := strings.Replace(fullFilepath, file, "", 1)
 
-		fmt.Println("creating a new nested file path")
+		fmt.Printf("create a new folder to store log files: %s\n", dirPath)
 		CreateNewNestedDirectory(dirPath)
 	}
 
 	// ubah permission file jadi writeable
-	SetWritable(fullFilepath)
+	if IsPathExist(fullFilepath) {
+		SetWritable(fullFilepath)
+	}
 
 	f, err := os.OpenFile(fullFilepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {

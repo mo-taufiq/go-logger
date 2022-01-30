@@ -14,13 +14,15 @@ import (
 )
 
 func main() {
-	gologger.LogConf = gologger.LogConfiguration{
-		DebugMode:           true,
-		Path:                "./logs",
-		TimeZone:            "Asia/Jakarta",
-		NestedFuncLevel:     1,
-		NestedLocationLevel: 2,
-	}
+	gologger.LogConf.TimeZone = "Asia/Jakarta"
+	gologger.LogConf.TimeFormat = "2006-01-02T15:04:05-0700"
+	gologger.LogConf.CreateLogFile = true
+	gologger.LogConf.Path = "./logs"
+	gologger.LogConf.DebugMode = true
+	gologger.LogConf.NestedLocationLevel = 1
+	gologger.LogConf.LogFuncName = true
+	gologger.LogConf.NestedFuncLevel = 1
+	gologger.LogConf.RuntimeCallerSkip = 2
 
 	gologger.Info("log info")
 	gologger.Warning("log warning")
